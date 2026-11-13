@@ -1,0 +1,6 @@
+{
+  "name": "Vaelor",
+  "description": "Plataforma de streaming cinematográfico em 4K UHD e PT-BR com reprodução direta e extração automática.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
