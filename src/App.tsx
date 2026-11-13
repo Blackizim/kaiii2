@@ -5,8 +5,16 @@ import { CinemaPlayer } from './components/CinemaPlayer';
 import { HeroSpotlight } from './components/HeroSpotlight';
 import { HomeBrowseView, type WatchProgressEntry } from './components/HomeBrowseView';
 import { AccountMenu } from './components/AccountMenu';
-import { AccountModal, readAccounts, type Account, type Profile } from './components/AccountModal';
+import {
+  AccountModal,
+  readAccounts,
+  updateStoredAccount,
+  type Account,
+  type Profile,
+} from './components/AccountModal';
+import { VipModal } from './components/VipModal';
 import { allowedForProfile } from './utils/profileRating';
+import { isAccountVip } from './utils/vipHelpers';
 import { SearchModal } from './components/SearchModal';
 import { SettingsModal } from './components/SettingsModal';
 import { TitleInfoView } from './components/TitleInfoView';
@@ -61,9 +69,11 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [vipOpen, setVipOpen] = useState(false);
   const [accountAction, setAccountAction] = useState<{ edit?: Profile; add?: boolean; manage?: boolean }>({});
   const [account, setAccount] = useState<Account | null>(() => { const session = readStorageJson<{email: string}>('kairou_session_v1', { email: '' }); return readAccounts().find(a => a.email === session.email) || null; });
   const [profile, setProfile] = useState<Profile | null>(() => { const session = readStorageJson<{email: string; profileId: string}>('kairou_session_v1', { email: '', profileId: '' }); return readAccounts().find(a => a.email === session.email)?.profiles.find(p => p.id === session.profileId) || null; });
+  const isVip = isAccountVip(account);
   const catalog = useMemo(() => fullCatalog.filter(item => allowedForProfile(item, profile?.maxRating, profile?.kids)), [fullCatalog, profile]);
   const storageKey = (key: string, a = account, p = profile) => a && p ? `${key}:${encodeURIComponent(a.email)}:${p.id}` : key;
   const selectProfile = (next: Profile, current = account) => {
@@ -433,6 +443,7 @@ export default function App() {
           onOpenSearch={() => setSearchOpen(true)}
           onOpenAccount={() => { if (account && profile) setAccountMenuOpen(v => !v); else { setAccountAction({}); setAccountOpen(true); } }}
           profile={profile}
+          isVip={isVip}
         />
       )}
 
@@ -546,8 +557,77 @@ export default function App() {
         onSelectTitle={(item) => void openTitleInfo(item)}
       />
 
-      {accountMenuOpen && account && profile && <AccountMenu account={account} profile={profile} onClose={() => setAccountMenuOpen(false)} onSelect={p => { selectProfile(p); setAccountMenuOpen(false); }} onEdit={p => { setAccountAction({edit:p}); setAccountMenuOpen(false); setAccountOpen(true); }} onManage={() => { setAccountAction({manage:true}); setAccountMenuOpen(false); setAccountOpen(true); }} onAdd={() => { setAccountAction({add:true}); setAccountMenuOpen(false); setAccountOpen(true); }} onLogout={() => { setAccountMenuOpen(false); logout(); }} />}
-      {accountOpen && <AccountModal initialEdit={accountAction.edit} initialAdd={accountAction.add} initialManage={accountAction.manage} account={account} profile={profile} onClose={() => setAccountOpen(false)} onAccount={(next) => { setAccount(next); if (!account) { localStorage.setItem('kairou_session_v1', JSON.stringify({ email: next.email, profileId: '' })); setProfile(null); setMyListIds([]); setWatchedIds([]); setContinueWatching([]); } else if (profile) { setProfile(next.profiles.find(p => p.id === profile.id) || profile); } }} onProfile={selectProfile} onLogout={logout} />}
+      {account && profile && (
+        <AccountMenu
+          isOpen={accountMenuOpen}
+          account={account}
+          profile={profile}
+          isVip={isVip}
+          onClose={() => setAccountMenuOpen(false)}
+          onSelect={(p) => {
+            selectProfile(p);
+            setAccountMenuOpen(false);
+          }}
+          onEdit={(p) => {
+            setAccountAction({ edit: p });
+            setAccountMenuOpen(false);
+            setAccountOpen(true);
+          }}
+          onManage={() => {
+            setAccountAction({ manage: true });
+            setAccountMenuOpen(false);
+            setAccountOpen(true);
+          }}
+          onAdd={() => {
+            setAccountAction({ add: true });
+            setAccountMenuOpen(false);
+            setAccountOpen(true);
+          }}
+          onOpenVip={() => {
+            setAccountMenuOpen(false);
+            setVipOpen(true);
+          }}
+          onLogout={() => {
+            setAccountMenuOpen(false);
+            logout();
+          }}
+        />
+      )}
+      {accountOpen && (
+        <AccountModal
+          initialEdit={accountAction.edit}
+          initialAdd={accountAction.add}
+          initialManage={accountAction.manage}
+          account={account}
+          profile={profile}
+          onClose={() => setAccountOpen(false)}
+          onOpenVip={() => setVipOpen(true)}
+          onAccount={(next) => {
+            setAccount(next);
+            if (!account) {
+              localStorage.setItem('kairou_session_v1', JSON.stringify({ email: next.email, profileId: '' }));
+              setProfile(null);
+              setMyListIds([]);
+              setWatchedIds([]);
+              setContinueWatching([]);
+            } else if (profile) {
+              setProfile(next.profiles.find((p) => p.id === profile.id) || profile);
+            }
+          }}
+          onProfile={selectProfile}
+          onLogout={logout}
+        />
+      )}
+      {vipOpen && account && (
+        <VipModal
+          account={account}
+          onUpdateAccount={(updated) => {
+            const saved = updateStoredAccount(updated);
+            setAccount(saved);
+          }}
+          onClose={() => setVipOpen(false)}
+        />
+      )}
       <SettingsModal
         isOpen={settingsOpen}
         settings={settings}

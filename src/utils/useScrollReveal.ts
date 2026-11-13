@@ -12,11 +12,17 @@ export function useScrollReveal<T extends HTMLElement>(dependencies: readonly un
         entry.target.classList.add('scroll-reveal-visible');
         observer.unobserve(entry.target);
       });
-    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+    }, { rootMargin: '120px 120px 120px 120px', threshold: 0.01 });
+    const vh = window.innerHeight || 900;
     cards.forEach(element => {
       if (element.classList.contains('scroll-reveal-visible')) return;
+      const rect = element.getBoundingClientRect();
+      if (rect.top < vh + 100) {
+        element.classList.add('scroll-reveal-visible');
+        return;
+      }
       const index = Array.from(element.parentElement?.children ?? []).indexOf(element);
-      element.style.setProperty('--reveal-delay', `${Math.min(Math.max(index, 0), 10) * 38}ms`);
+      element.style.setProperty('--reveal-delay', `${Math.min(Math.max(index, 0), 8) * 30}ms`);
       element.classList.add('scroll-reveal');
       observer.observe(element);
     });

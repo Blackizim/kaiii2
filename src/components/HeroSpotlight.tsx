@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Calendar, Check, Info, Play, Plus, Star, Swords } from 'lucide-react';
 import type { MediaTitle } from '../data/curatedCatalog';
 
@@ -15,15 +15,6 @@ export const HeroSpotlight: React.FC<HeroSpotlightProps> = ({
   onOpenInfo,
   onToggleMyList,
 }) => {
-  const contentRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
-    let frame = 0;
-    const update = () => { frame = 0; if (!contentRef.current) return; const y = window.scrollY; contentRef.current.style.transform = motion.matches ? '' : `translate3d(0, ${Math.min(y * .16, 120)}px, 0)`; contentRef.current.style.opacity = motion.matches ? '' : String(Math.max(0, 1 - y / 620)); };
-    const onScroll = () => { if (!frame) frame = requestAnimationFrame(update); };
-    window.addEventListener('scroll', onScroll, { passive: true }); motion.addEventListener('change', onScroll); update();
-    return () => { window.removeEventListener('scroll', onScroll); motion.removeEventListener('change', onScroll); if (frame) cancelAnimationFrame(frame); };
-  }, []);
   const featured = items.slice(0, 7);
   const [activeIndex, setActiveIndex] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -52,7 +43,7 @@ export const HeroSpotlight: React.FC<HeroSpotlightProps> = ({
       aria-label="Destaques em cartaz"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
-      className="relative w-full min-h-[76vh] max-h-[820px] flex items-end overflow-hidden bg-[#08090C]"
+      className="relative w-full min-h-[74vh] max-h-[820px] flex items-end overflow-hidden bg-[#08090C]"
     >
       {/* Full-bleed Backdrop with smooth compositor transition */}
       <img
@@ -69,7 +60,7 @@ export const HeroSpotlight: React.FC<HeroSpotlightProps> = ({
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#08090C] via-[#08090C]/25 to-black/35" />
 
       {/* Content Block */}
-      <div ref={contentRef} className="relative z-10 w-full px-5 sm:px-10 pb-14 pt-32 flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <div className="relative z-10 w-full px-5 sm:px-10 pb-14 pt-32 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div key={`meta-${current.id}`} className="max-w-xl space-y-4 animate-vaelor-enter">
           {!logoFailed ? (
             <img

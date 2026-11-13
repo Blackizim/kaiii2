@@ -69,10 +69,13 @@ test('detectTitleAudioKind and matchExactEpisode handle episode formats and abso
   assert.equal(extractEpisodeNumberFromEntry('Assistir', 'https://ex.test/episodios/jjk-episodio-14/'), 14);
 
   const entries = [
+    { url: 'https://ex.test/ep-1', text: 'Episódio 1' },
     { url: 'https://ex.test/ep-25', text: 'Episódio 25' },
     { url: 'https://ex.test/ep-26', text: 'Episódio 26' },
   ];
-  assert.equal(matchExactEpisode(entries, 1, 26)?.url, 'https://ex.test/ep-26');
+  assert.equal(matchExactEpisode(entries, 1, 26)?.url, 'https://ex.test/ep-1');
+  assert.equal(matchExactEpisode(entries, 1, 26, true)?.url, 'https://ex.test/ep-26');
+  assert.equal(matchExactEpisode(entries, 1, undefined, true), null);
   assert.equal(matchExactEpisode(entries, 25)?.url, 'https://ex.test/ep-25');
   assert.equal(matchExactEpisode(entries, 99), null);
 });

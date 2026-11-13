@@ -1,12 +1,16 @@
-import dotenv from 'dotenv';
-dotenv.config({ path: '.env.local' });
 import crypto from 'node:crypto';
 import { EventEmitter } from 'node:events';
+import dotenv from 'dotenv';
 import express from 'express';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { createServer as createViteServer } from 'vite';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.join(__dirname, '.env.local'), override: true });
+dotenv.config({ path: path.join(__dirname, '.env'), override: false });
 import {
   CURATED_CATALOG,
   type CastMember,
@@ -35,20 +39,21 @@ import {
   detectTitleAudioKind,
   extractAnivideoM3u8Urls,
   extractBloggerMp4Urls,
+  extractSeasonHint,
   matchExactEpisode,
   pickTopAnimeCandidates,
 } from './src/utils/animeMatcher.ts';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 const PORT = Number(process.env.PORT ?? 3000);
 
 const DEFAULT_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
 // Server-side TMDB credentials (never exposed to browser)
-const TMDB_READ_TOKEN = process.env.TMDB_READ_TOKEN || '';
-const TMDB_API_KEY = process.env.TMDB_API_KEY || '';
+const rawReadToken = process.env.TMDB_READ_TOKEN || '';
+const rawApiKey = process.env.TMDB_API_KEY || '';
+const TMDB_READ_TOKEN = rawReadToken === 'MY_TMDB_READ_TOKEN' ? '' : rawReadToken;
+const TMDB_API_KEY = rawApiKey === 'MY_TMDB_API_KEY' ? '' : rawApiKey;
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 const TMDB_IMG = 'https://image.tmdb.org/t/p';
 
@@ -251,16 +256,15 @@ async function fetchWithTimeout(
 }
 
 async function fetchTmdbJson<T>(endpointPath: string, timeoutMs = 2600): Promise<T | null> {
+  if (!TMDB_API_KEY && !TMDB_READ_TOKEN) return null;
   const sep = endpointPath.includes('?') ? '&' : '?';
-  const url = `${TMDB_BASE}${endpointPath}${sep}api_key=${TMDB_API_KEY}`;
+  const url = TMDB_API_KEY
+    ? `${TMDB_BASE}${endpointPath}${sep}api_key=${encodeURIComponent(TMDB_API_KEY)}`
+    : `${TMDB_BASE}${endpointPath}`;
   try {
-    const res = await fetchWithTimeout(url, {
-      timeoutMs,
-      headers: {
-        Authorization: `Bearer ${TMDB_READ_TOKEN}`,
-        Accept: 'application/json',
-      },
-    });
+    const headers: Record<string, string> = { Accept: 'application/json' };
+    if (TMDB_READ_TOKEN) headers.Authorization = `Bearer ${TMDB_READ_TOKEN}`;
+    const res = await fetchWithTimeout(url, { timeoutMs, headers });
     if (res.status !== 200) return null;
     return JSON.parse(res.text) as T;
   } catch {
@@ -431,7 +435,7 @@ async function resolveAnimeContext(target: ExtractTarget): Promise<AnimeContext 
   const titlePool: string[] = [];
   const pushTitle = (t?: string | null) => {
     const clean = (t ?? '').trim();
-    if (!clean) return;
+    if (!clean || !/[a-z]{2}/i.test(clean)) return;
     if (!titlePool.some((x) => x.toLowerCase() === clean.toLowerCase())) {
       titlePool.push(clean);
     }
@@ -462,6 +466,7 @@ async function resolveAnimeContext(target: ExtractTarget): Promise<AnimeContext 
   let anilistId: number | undefined;
   let absoluteEpisode: number | undefined;
 
+  let hasFullRomaji = false;
   try {
     const azRes = await fetchWithTimeout(
       `https://api.ani.zip/mappings?themoviedb_id=${encodeURIComponent(target.tmdbId)}`,
@@ -479,7 +484,10 @@ async function resolveAnimeContext(target: ExtractTarget): Promise<AnimeContext 
       if (az.titles && Object.keys(az.titles).length > 0) {
         isAnime = true;
         const xjat = az.titles['x-jat'];
-        if (xjat && xjat.length > 4) pushTitle(xjat);
+        if (xjat && xjat.length > 5 && /[a-z]{3}/i.test(xjat)) {
+          pushTitle(xjat);
+          hasFullRomaji = true;
+        }
         pushTitle(az.titles.en);
         pushTitle(az.titles.pt);
       }
@@ -512,8 +520,8 @@ async function resolveAnimeContext(target: ExtractTarget): Promise<AnimeContext 
     return null;
   }
 
-  // If we still lack a full Romaji title (e.g., ani.zip only gave "SnK" and no curated title), enrich via AniList
-  if (titlePool.length < 2 && (anilistId || malId)) {
+  // Enrich Romaji title via AniList if ani.zip lacked a full x-jat Romaji title
+  if ((!hasFullRomaji || titlePool.length < 2) && (anilistId || malId)) {
     try {
       const query = anilistId
         ? 'query($id:Int){Media(id:$id,type:ANIME){title{romaji english}}}'
@@ -1075,7 +1083,11 @@ async function extractAnimesFhdPipeline(
       episodes?: Array<{ id?: number | string; episode_number?: number }>;
     };
 
-    const seasonVersions = (det.versions ?? []).filter((v) => v.season === target.season);
+    const allVersions = det.versions ?? [];
+    const seasonVersions = allVersions.filter((v) => v.season === target.season);
+    if (allVersions.length > 0 && seasonVersions.length === 0) {
+      return { streams: [], subtitles: [] };
+    }
     const targetVersions =
       seasonVersions.length > 0
         ? seasonVersions
@@ -1225,7 +1237,9 @@ async function extractAnimesDigitalPipeline(
           });
         }
 
-        const matchedEp = matchExactEpisode(epEntries, target.episode, ctx.absoluteEpisode);
+        const pageSeason = extractSeasonHint(animePage.title, ctx.searchTitles);
+        const requireAbsoluteOnly = target.season > 1 && pageSeason !== target.season;
+        const matchedEp = matchExactEpisode(epEntries, target.episode, ctx.absoluteEpisode, requireAbsoluteOnly);
         if (!matchedEp) return;
 
         const vr = await fetchWithTimeout(matchedEp.url, {
@@ -1330,7 +1344,9 @@ async function extractAniTubePipeline(
           });
         }
 
-        const matchedEp = matchExactEpisode(epEntries, target.episode, ctx.absoluteEpisode);
+        const pageSeason = extractSeasonHint(seriesPage.title, ctx.searchTitles);
+        const requireAbsoluteOnly = target.season > 1 && pageSeason !== target.season;
+        const matchedEp = matchExactEpisode(epEntries, target.episode, ctx.absoluteEpisode, requireAbsoluteOnly);
         if (!matchedEp) return;
 
         const vr = await fetchWithTimeout(matchedEp.url, {
@@ -1438,7 +1454,9 @@ async function extractAnrollPipeline(
           });
         }
 
-        const matchedEp = matchExactEpisode(epEntries, target.episode, ctx.absoluteEpisode);
+        const pageSeason = extractSeasonHint(animePage.title, ctx.searchTitles);
+        const requireAbsoluteOnly = target.season > 1 && pageSeason !== target.season;
+        const matchedEp = matchExactEpisode(epEntries, target.episode, ctx.absoluteEpisode, requireAbsoluteOnly);
         if (!matchedEp) return;
 
         const er = await fetchWithTimeout(matchedEp.url, {
@@ -2331,10 +2349,10 @@ async function fetchLiveCatalogFeed(): Promise<MediaTitle[]> {
   if (hit && hit.expiresAt > Date.now()) return hit.value;
 
   const [trendDayRes, trendMoviesRes, trendTvRes, nowPlayingRes] = await Promise.all([
-    fetchTmdbJson<{ results?: Array<Record<string, unknown>> }>('/trending/all/day?language=pt-BR', 2600),
-    fetchTmdbJson<{ results?: Array<Record<string, unknown>> }>('/trending/movie/week?language=pt-BR', 2600),
-    fetchTmdbJson<{ results?: Array<Record<string, unknown>> }>('/trending/tv/week?language=pt-BR', 2600),
-    fetchTmdbJson<{ results?: Array<Record<string, unknown>> }>('/movie/now_playing?language=pt-BR&region=BR', 2600),
+    fetchTmdbJson<{ results?: Array<Record<string, unknown>> }>('/trending/all/day?language=pt-BR', 3200),
+    fetchTmdbJson<{ results?: Array<Record<string, unknown>> }>('/trending/movie/week?language=pt-BR', 3200),
+    fetchTmdbJson<{ results?: Array<Record<string, unknown>> }>('/trending/tv/week?language=pt-BR', 3200),
+    fetchTmdbJson<{ results?: Array<Record<string, unknown>> }>('/movie/now_playing?language=pt-BR&region=BR', 3200),
   ]);
 
   const combined: MediaTitle[] = [];
@@ -2552,7 +2570,7 @@ async function startServer() {
     try {
       const tmdbRes = await fetchTmdbJson<{ results?: Array<Record<string, unknown>> }>(
         `/search/multi?language=pt-BR&include_adult=false&query=${encodeURIComponent(q)}`,
-        2000
+        3000
       );
       const remote: MediaTitle[] = (tmdbRes?.results ?? [])
         .filter((r) => (r.media_type === 'movie' || r.media_type === 'tv') && (r.poster_path || r.backdrop_path))
@@ -2991,15 +3009,20 @@ async function startServer() {
       const contentType = upstream.headers.get('content-type') ?? 'application/octet-stream';
       const ctLower = contentType.toLowerCase();
       const finalLower = (upstream.url || targetUrl).toLowerCase();
-      const isBinaryVideo = ctLower.includes('video/mp4') || finalLower.includes('.mp4');
+      const isHlsContentType = ctLower.includes('mpegurl') || ctLower.includes('x-mpegurl');
+      const isHlsUrl =
+        /\.m3u8(\?|$|#)/i.test(targetUrl) ||
+        /\.m3u8(\?|$|#)/i.test(finalLower) ||
+        targetUrl.endsWith('/master.txt') ||
+        targetUrl.includes('m3u8-proxy') ||
+        targetUrl.includes('/proxy?u=');
+      const isBinaryVideo =
+        !isHlsContentType &&
+        !isHlsUrl &&
+        (ctLower.includes('video/mp4') || /\.mp4(\?|$|#)/i.test(finalLower));
       const isManifestCandidate =
         !isBinaryVideo &&
-        (targetUrl.includes('.m3u8') ||
-          finalLower.includes('.m3u8') ||
-          targetUrl.endsWith('/master.txt') ||
-          targetUrl.includes('m3u8-proxy') ||
-          targetUrl.includes('/proxy?u=') ||
-          ctLower.includes('mpegurl'));
+        (isHlsContentType || isHlsUrl || targetUrl.includes('.m3u8') || finalLower.includes('.m3u8'));
 
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Expose-Headers', 'Content-Range, Content-Length, Accept-Ranges');

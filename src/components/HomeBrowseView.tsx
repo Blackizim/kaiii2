@@ -66,7 +66,7 @@ export const HomeBrowseView: React.FC<HomeBrowseViewProps> = ({
             </button>
           </div>
 
-          <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar">
+          <div className="flex gap-4 overflow-x-auto overflow-y-visible overscroll-x-contain pb-2 no-scrollbar">
             {continueWatching.map((entry) => {
               const pct =
                 entry.duration > 0
@@ -140,7 +140,7 @@ export const HomeBrowseView: React.FC<HomeBrowseViewProps> = ({
           Top 10 hoje no Kairou
         </h2>
 
-        <div className="flex gap-6 sm:gap-8 overflow-x-auto pb-4 pl-2 no-scrollbar">
+        <div className="flex gap-6 sm:gap-8 overflow-x-auto overflow-y-visible overscroll-x-contain pb-4 pl-2 no-scrollbar">
           {top10.map((item, idx) => {
             const rank = idx + 1;
             const posterSrc = failedImg[`t10-${item.id}`]
@@ -240,7 +240,7 @@ const PosterRail: React.FC<PosterRailProps> = ({
   onOpenInfo,
 }) => {
   return (
-    <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar">
+    <div className="flex gap-4 overflow-x-auto overflow-y-visible overscroll-x-contain pb-2 no-scrollbar">
       {items.map((item) => {
         const posterSrc = failedImg[`rail-${item.id}`]
           ? '/src/assets/images/poster_metro_hospital_1794566232848.jpg'

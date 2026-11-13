@@ -9,10 +9,12 @@
     color-scheme: dark;
   }
 
-  body {
+  html, body {
     font-family: var(--font-sans);
     background-color: #08090C;
     color: #F5F5F7;
+    overflow-x: clip;
+    overscroll-behavior-y: auto;
   }
 
   h1, h2, h3, h4, .font-display {
@@ -88,14 +90,68 @@
   animation: vaelorFadeUp 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+@keyframes kairouMenuPop {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -10px, 0) scale(0.9);
+  }
+  70% {
+    opacity: 1;
+    transform: translate3d(0, 2px, 0) scale(1.015);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes kairouMenuOut {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, -8px, 0) scale(0.93);
+  }
+}
+
+.animate-kairou-menu {
+  transform-origin: top right;
+  animation: kairouMenuPop 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-kairou-menu-out {
+  transform-origin: top right;
+  animation: kairouMenuOut 150ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+@keyframes kairouModalPop {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.animate-kairou-modal {
+  animation: kairouModalPop 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .animate-vaelor-enter {
+  .animate-vaelor-enter,
+  .animate-kairou-menu,
+  .animate-kairou-menu-out,
+  .animate-kairou-modal {
     animation: none;
   }
 }
 
 /* Entrada progressiva dos cartazes, como no catálogo de referência. */
-.scroll-reveal { opacity: 0; transform: translateY(26px); }
-.scroll-reveal.scroll-reveal-visible { animation: catalog-reveal .7s cubic-bezier(.22,1,.36,1) var(--reveal-delay, 0ms) both; }
-@keyframes catalog-reveal { from { opacity: 0; transform: translateY(26px); } to { opacity: 1; transform: none; } }
+.scroll-reveal { opacity: 0; transform: translateY(18px); }
+.scroll-reveal.scroll-reveal-visible { animation: catalog-reveal .55s cubic-bezier(.22,1,.36,1) var(--reveal-delay, 0ms) both; }
+@keyframes catalog-reveal { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .scroll-reveal, .scroll-reveal.scroll-reveal-visible { opacity: 1; transform: none; animation: none; } }

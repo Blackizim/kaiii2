@@ -221,10 +221,14 @@ export function extractEpisodeNumberFromEntry(text: string, url: string): number
 export function matchExactEpisode<T extends EpisodeLinkEntry>(
   entries: T[],
   targetEpisode: number,
-  absoluteEpisode?: number
+  absoluteEpisode?: number,
+  requireAbsoluteOnly = false
 ): T | null {
-  const candidatesToCheck = [targetEpisode];
-  if (absoluteEpisode && absoluteEpisode > 0 && absoluteEpisode !== targetEpisode) {
+  const candidatesToCheck: number[] = [];
+  if (!requireAbsoluteOnly) {
+    candidatesToCheck.push(targetEpisode);
+  }
+  if (absoluteEpisode && absoluteEpisode > 0 && !candidatesToCheck.includes(absoluteEpisode)) {
     candidatesToCheck.push(absoluteEpisode);
   }
 

@@ -2,6 +2,7 @@ import React from 'react';
 import { ArrowLeft, Bookmark, Film, Home, Search, Tv } from 'lucide-react';
 import { smileyUrl } from './ProfileGate';
 import type { Profile } from './AccountModal';
+import { getProfileRingColor } from '../utils/vipHelpers';
 import { KairouLogo } from './KairouLogo';
 
 export type NavSection = 'home' | 'movies' | 'shows' | 'mylist';
@@ -14,6 +15,7 @@ interface TopNavProps {
   onOpenSearch: () => void;
   onOpenAccount: () => void;
   profile?: Profile | null;
+  isVip?: boolean;
 }
 
 const NAV_ITEMS: Array<{ id: NavSection; label: string; icon: React.ReactNode }> = [
@@ -31,6 +33,7 @@ export const TopNav: React.FC<TopNavProps> = ({
   onOpenSearch,
   onOpenAccount,
   profile,
+  isVip = false,
 }) => {
   return (
     <header className="fixed top-0 inset-x-0 z-40 pointer-events-none px-2 sm:px-8 py-4 sm:py-5">
@@ -105,7 +108,27 @@ export const TopNav: React.FC<TopNavProps> = ({
             <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </button>
 
-          <button type="button" onClick={onOpenAccount} aria-label={profile ? `Perfil ${profile.name}` : 'Entrar'} className={profile ? 'shrink-0 rounded-full p-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white' : 'shrink-0 rounded-full bg-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/20'}>{profile ? <img src={profile.avatar || smileyUrl(profile.color)} alt="" className="h-8 w-8 rounded-lg object-cover ring-2 ring-[#2e7bff]"/> : 'Entrar'}</button>
+          <button
+            type="button"
+            onClick={onOpenAccount}
+            aria-label={profile ? `Perfil ${profile.name}` : 'Entrar'}
+            className={
+              profile
+                ? 'shrink-0 rounded-full p-0.5 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-white'
+                : 'shrink-0 rounded-full bg-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/20 cursor-pointer'
+            }
+          >
+            {profile ? (
+              <img
+                src={profile.avatar || smileyUrl(profile.color)}
+                alt=""
+                style={{ boxShadow: `0 0 0 2px ${getProfileRingColor(profile.borderColor, isVip)}` }}
+                className="h-8 w-8 rounded-lg object-cover"
+              />
+            ) : (
+              'Entrar'
+            )}
+          </button>
         </nav>
       </div>
     </header>
